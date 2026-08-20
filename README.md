@@ -1,6 +1,6 @@
 # 🚀 Kubernetes & Cloud Native 스터디 (k8s_study)
 
-> **kubectl, Helm, Minikube**를 활용한 로컬 쿠버네티스 클러스터 구축부터 실전 애플리케이션 배포 및 트러블슈팅까지 처음부터 끝까지 100% 재현 가능한 올인원 가이드입니다.
+> **kubectl, Helm, Minikube**를 활용한 로컬 쿠버네티스 클러스터 구축부터 실전 데이터 엔지니어링 파이프라인(Kafka, Spark/Flink, Airflow) 애플리케이션 배포 및 트러블슈팅까지 100% 재현 가능한 올인원 가이드입니다.
 
 ---
 
@@ -16,9 +16,10 @@
    - [2-3. 필수 Minikube 애드온 활성화](#2-3-필수-minikube-애드온-활성화)
 3. [kubectl 기본 사용법 및 클러스터 동작 검증](#3-kubectl-기본-사용법-및-클러스터-동작-검증)
 4. [Helm 기본 개념 및 패키지 관리 가이드](#4-helm-기본-개념-및-패키지-관리-가이드)
-5. [실전 컴포넌트 배포 시나리오 (MariaDB, Kafka, Flink, Airflow)](#5-실전-컴포넌트-배포-시나리오)
+5. [실전 컴포넌트 배포 시나리오 (MariaDB, Kafka, Flink/Spark, Airflow)](#5-실전-컴포넌트-배포-시나리오)
 6. [외부 서비스 접속 및 포트포워딩 가이드](#6-외부-서비스-접속-및-포트포워딩-가이드)
 7. [트러블슈팅 및 Minikube 클린 리셋 가이드](#7-트러블슈팅-및-minikube-클린-리셋-가이드)
+8. [학습 및 페어 프로그래밍 가이드](#8-학습-및-페어-프로그래밍-가이드)
 
 ---
 
@@ -79,7 +80,7 @@ minikube version
 ## 2. Minikube 클러스터 시작 및 최적화 설정
 
 ### 2-1. 사양 최적화 클러스터 기동 (권장 노트북 사양)
-스트리밍 엔진(Kafka, Flink) 및 워크플로우 도구(Airflow) 등 대규모 데이터 파이프라인 컴포넌트들을 안정적으로 구동하기 위해 **노트북 사양(8 Cores / 16 Threads, 32GB RAM)** 에 맞춘 리소스를 할당합니다.
+스트리밍 엔진(Kafka, Flink/Spark) 및 워크플로우 도구(Airflow) 등 대규모 데이터 파이프라인 컴포넌트들을 안정적으로 구동하기 위해 **노트북 사양(8 Cores / 16 Threads, 32GB RAM)** 에 맞춘 리소스를 할당합니다.
 
 ```bash
 # Docker 드라이버 기준 (가장 안정적 / 권장)
@@ -98,17 +99,16 @@ minikube start \
 
 ### 2-2. kubectl 컨텍스트 및 노드 상태 확인
 ```bash
-# 현재 kubectl 대상을 minikube로 지정
-kubectl config use-context minikube
+# 1. 현재 컨텍스트가 minikube인지 확인
+kubectl config current-context
 
-# 클러스터 상태 및 노드 확인
-minikube status
-kubectl get nodes -o wide
+# 2. 노드 상태 확인 (STATUS가 Ready여야 함)
+kubectl get nodes
 ```
 
 ### 2-3. 필수 Minikube 애드온 활성화
 ```bash
-# 1. 동적 스토리지 프로비저닝 (PV/PVC 생성 지원)
+# 1. 동적 스토리지 프로비저닝 (기본 활성화되어 있으나 확인)
 minikube addons enable storage-provisioner
 minikube addons enable default-storageclass
 
@@ -187,8 +187,8 @@ BIDA 플랫폼 및 대규모 데이터 인프라 실습을 위한 주요 컴포�
 
 ```
 ┌──────────────────┐      ┌──────────────────────────┐      ┌───────────────────────────┐
-│ 1. MariaDB       │ ───► │ 2. Strimzi Apache Kafka  │ ───► │ 3. Apache Flink Operator  │
-│ (RDBMS / Secret) │      │ (Kafka Cluster & Topics) │      │ (Streaming & SQL Gateway) │
+│ 1. MariaDB       │ ───► │ 2. Strimzi Apache Kafka  │ ───► │ 3. Apache Flink / Spark   │
+│ (RDBMS / Secret) │      │ (Kafka Cluster & Topics) │      │ (Streaming & Batch Proc)  │
 └──────────────────┘      └──────────────────────────┘      └───────────────────────────┘
                                                                           │
                                                                           ▼
@@ -210,26 +210,27 @@ kubectl create secret generic mariadb-secret \
   -n mariadb
 
 # 2. MariaDB 배포 (StatefulSet / PV)
-# (매니페스트 yaml이 있는 경로에서 실행)
 kubectl apply -f maria_pv.yaml -n mariadb
 kubectl apply -f mariadb.yaml -n mariadb
 ```
 
 ### [Step 2] Apache Kafka 배포 (Strimzi Operator)
+> 👉 **상세 가이드 및 트러블슈팅**: [📖 `kafka/README.md`](./kafka/README.md) 참조
+
 ```bash
-# 1. Strimzi CRD (v0.47.0) 및 Operator 설치
-kubectl apply -f https://github.com/strimzi/strimzi-kafka-operator/releases/download/0.47.0/strimzi-crds-0.47.0.yaml
+# 1. Strimzi 최신 CRD 수동 적용 (v1 지원)
+kubectl apply -f https://github.com/strimzi/strimzi-kafka-operator/releases/download/1.1.0/strimzi-crds-1.1.0.yaml
 
-helm install my-strimzi-kafka-operator oci://quay.io/strimzi-helm/strimzi-kafka-operator \
-  -n kafka-kubernetes-operator \
-  --create-namespace \
-  --version 0.47.0
+# 2. Strimzi Operator 설치 (Helm)
+helm repo add strimzi https://strimzi.io/charts/
+helm repo update
+helm install strimzi-operator strimzi/strimzi-kafka-operator --namespace kafka --create-namespace
 
-# 2. Kafka 클러스터 배포
-kubectl apply -f kafka_cluster.yaml -n kafka-kubernetes-operator
+# 3. Kafka 클러스터 배포 (KRaft 모드)
+kubectl apply -f kafka/kafka-cluster.yaml
 ```
 
-### [Step 3] Apache Flink 클러스터 & SQL Gateway 배포
+### [Step 3] Apache Flink / Spark 클러스터 배포
 ```bash
 # 1. cert-manager 및 Flink Operator 설치
 kubectl apply -f https://github.com/jetstack/cert-manager/releases/download/v1.18.2/cert-manager.yaml --insecure-skip-tls-verify
@@ -321,3 +322,8 @@ helm delete my-strimzi-kafka-operator -n kafka-kubernetes-operator
 kubectl delete namespace airflow flink flink-kubernetes-operator kafka-kubernetes-operator mariadb
 ```
 
+---
+
+## 8. 학습 및 페어 프로그래밍 가이드
+- 본 프로젝트는 단계별 직접 실습 및 트러블슈팅 체득을 최우선으로 합니다.
+- 가이드라인 및 프롬프트 규칙: [`AGENTS.md`](./AGENTS.md)
