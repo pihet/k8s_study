@@ -72,7 +72,7 @@ helm install strimzi-operator strimzi/strimzi-kafka-operator --namespace kafka -
 ```
 
 ### 3-2. Kafka 4.3.1 KRaft 단일 노드 클러스터 배포
-[`kafka-single-node.yaml`](./kafka-single-node.yaml)
+[`cluster/kafka-single-node.yaml`](./cluster/kafka-single-node.yaml)
 ```yaml
 apiVersion: kafka.strimzi.io/v1
 kind: KafkaNodePool
@@ -127,11 +127,32 @@ spec:
     userOperator: {}
 ```
 ```bash
-kubectl apply -f kafka-single-node.yaml
+kubectl apply -f cluster/kafka-single-node.yaml
 ```
 
-### 3-3. Kafka-UI 웹 대시보드 배포
-[`kafka-ui.yaml`](./kafka-ui.yaml)
+### 3-3. Kafka 토픽 배포 (`KafkaTopic` CRD)
+[`topics/kafka-topic.yaml`](./topics/kafka-topic.yaml)
+```yaml
+apiVersion: kafka.strimzi.io/v1
+kind: KafkaTopic
+metadata:
+  name: my-topic
+  namespace: kafka
+  labels:
+    strimzi.io/cluster: my-cluster
+spec:
+  partitions: 3
+  replicas: 1
+  config:
+    retention.ms: "7200000"
+    segment.bytes: "10485760"
+```
+```bash
+kubectl apply -f topics/kafka-topic.yaml
+```
+
+### 3-4. Kafka-UI 웹 대시보드 배포
+[`../kafka-ui/kafka-ui.yaml`](../kafka-ui/kafka-ui.yaml)
 ```yaml
 apiVersion: apps/v1
 kind: Deployment
