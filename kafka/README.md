@@ -130,7 +130,88 @@ spec:
 kubectl apply -f cluster/kafka-single-node.yaml
 ```
 
-### 3-3. Kafka 토픽 배포 (`KafkaTopic` CRD)
+### 3-3. Kafka 4.3.1 KRaft 고가용성(HA) 분리형 클러스터 배포 (Controller 3대 + Broker 3대)
+[`cluster/kafka-ha-cluster.yaml`](./cluster/kafka-ha-cluster.yaml)
+```yaml
+# 1. Controller 노드풀 (3대) - KRaft 메타데이터 Quorum
+apiVersion: kafka.strimzi.io/v1
+kind: KafkaNodePool
+metadata:
+  name: controller
+  namespace: kafka
+  labels:
+    strimzi.io/cluster: my-cluster
+spec:
+  replicas: 3
+  roles:
+    - controller
+  storage:
+    type: jbod
+    volumes:
+      - id: 0
+        type: persistent-claim
+        size: 5Gi
+        kraftMetadata: shared
+---
+# 2. Broker 노드풀 (3대) - 실제 데이터 분산 저장 및 트래픽 처리
+apiVersion: kafka.strimzi.io/v1
+kind: KafkaNodePool
+metadata:
+  name: broker
+  namespace: kafka
+  labels:
+    strimzi.io/cluster: my-cluster
+spec:
+  replicas: 3
+  roles:
+    - broker
+  storage:
+    type: jbod
+    volumes:
+      - id: 0
+        type: persistent-claim
+        size: 5Gi
+        kraftMetadata: shared
+---
+# 3. Kafka 클러스터 메인 설정
+apiVersion: kafka.strimzi.io/v1
+kind: Kafka
+metadata:
+  name: my-cluster
+  namespace: kafka
+spec:
+  kafka:
+    version: 4.3.1
+    metadataVersion: 4.3-IV0
+    listeners:
+      - name: plain
+        port: 9092
+        type: internal
+        tls: false
+      - name: tls
+        port: 9093
+        type: internal
+        tls: true
+      - name: external
+        port: 9094
+        type: nodeport
+        tls: false
+    config:
+      offsets.topic.replication.factor: 3
+      transaction.state.log.replication.factor: 3
+      transaction.state.log.min.isr: 2
+      default.replication.factor: 3
+      min.insync.replicas: 2
+  entityOperator:
+    topicOperator: {}
+    userOperator: {}
+```
+```bash
+# 배포
+kubectl apply -f cluster/kafka-ha-cluster.yaml
+```
+
+### 3-4. Kafka 토픽 배포 (`KafkaTopic` CRD)
 [`topics/kafka-topic.yaml`](./topics/kafka-topic.yaml)
 ```yaml
 apiVersion: kafka.strimzi.io/v1
@@ -289,3 +370,19 @@ kubectl port-forward -n kafka svc/kafka-ui 8080:8080
    - Helm은 데이터 손실 위험 방지를 위해 CRD를 자동 업그레이드하지 않으므로, 오퍼레이터 버전업 시 CRD 수동 관리가 필수적임.
 3. **크로스 플랫폼(Linux ➔ Windows) Kubeconfig 관리**:
    - 서로 다른 OS 간에 `kubeconfig`를 공유할 때는 파일 경로 대신 `--flatten` 플래그로 인증서 데이터를 임베딩하는 방식이 가장 안전함.
+
+---
+
+## 7. 🏢 실무 기업들의 카프카 활용 4대 시나리오
+
+실제 대규모 기업(쿠팡, 토스, 배달의민족, 넷플릭스 등)에서는 구축된 카프카 인프라를 다음과 같이 활용합니다:
+
+1. **DB 변경분 실시간 복제 (CDC: Change Data Capture)**
+   - Debezium / Kafka Connect를 통해 RDBMS(MySQL, PostgreSQL)의 binlog를 실시간 감지하여 Elasticsearch, Redis, S3로 실시간 복제.
+2. **마이크로서비스(MSA) 비동기 이벤트 분리 (Decoupling & Event-Driven Architecture)**
+   - 결제 완료 이벤트 발행 시 주문, 재고, 배송, 알림 서비스가 카프카를 통해 서로 간섭 없이 독립적으로 처리.
+3. **대규모 실시간 스트리밍 처리 (Spark Streaming / Flink)**
+   - 이상 금융거래 탐지(FDS), 실시간 추천 알고리즘, 위치 추적 등 초당 수십만 건의 데이터를 실시간 분석.
+4. **엔터프라이즈 데이터 레이크 수집 (Airflow + Spark ➔ S3 / Data Lake)**
+   - 카프카에 적재된 대용량 원시(Raw) 데이터를 Airflow 스케줄러와 Spark 분산 엔진이 주기적으로 정제하여 데이터 레이크에 저장.
+
