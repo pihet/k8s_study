@@ -188,14 +188,14 @@ spec:
         port: 9092
         type: internal
         tls: false
+        authentication:
+          type: scram-sha-512
       - name: tls
         port: 9093
         type: internal
         tls: true
-      - name: external
-        port: 9094
-        type: nodeport
-        tls: false
+    authorization:
+      type: simple
     config:
       offsets.topic.replication.factor: 3
       transaction.state.log.replication.factor: 3
@@ -223,7 +223,7 @@ metadata:
     strimzi.io/cluster: my-cluster
 spec:
   partitions: 3
-  replicas: 1
+  replicas: 3
   config:
     retention.ms: "7200000"
     segment.bytes: "10485760"
@@ -232,7 +232,40 @@ spec:
 kubectl apply -f topics/kafka-topic.yaml
 ```
 
-### 3-4. Kafka-UI 웹 대시보드 배포
+### 3-5. KafkaUser 보안 계정 & ACL 권한 배포 (`KafkaUser` CRD)
+[`users/app-user.yaml`](./users/app-user.yaml)
+```yaml
+apiVersion: kafka.strimzi.io/v1
+kind: KafkaUser
+metadata:
+  name: my-app-user
+  namespace: kafka
+  labels:
+    strimzi.io/cluster: my-cluster
+spec:
+  authentication:
+    type: scram-sha-512
+  authorization:
+    type: simple
+    acls:
+      - resource:
+          type: topic
+          name: my-topic
+          patternType: literal
+        operations:
+          - All
+      - resource:
+          type: group
+          name: "*"
+          patternType: literal
+        operations:
+          - Read
+```
+```bash
+kubectl apply -f users/app-user.yaml
+```
+
+### 3-6. Kafka-UI 웹 대시보드 배포
 [`../kafka-ui/kafka-ui.yaml`](../kafka-ui/kafka-ui.yaml)
 ```yaml
 apiVersion: apps/v1
@@ -359,6 +392,20 @@ kubectl port-forward -n kafka svc/kafka-ui 8080:8080
   - `Pods` 화면 우측 상단의 `Namespace: default` 드롭다운이 여전히 `default`로 설정되어 있었음.
 - **해결**:
   - `Pods` 화면 우측 상단의 **`Namespace: default ▼` 드롭다운**을 클릭하여 **`kafka`** (또는 `All Namespaces`)로 변경.
+
+### Case 5: Strimzi v1 KafkaUser CRD의 `operations` 배열(Array) 스키마 검증 에러
+- **증상**: `kubectl apply -f app-user.yaml` 실행 시 아래 에러와 함께 거부됨:
+  ```text
+  The KafkaUser "my-app-user" is invalid: spec.authorization.acls[0].operations in body must be of type array: "string"
+  ```
+- **원인**:
+  - 구버전(v1beta2)에서는 `operation: All` 단수형 문자열을 사용했으나, 최신 Strimzi `v1` CRD에서는 `operations:` 복수형 **배열(Array)** 문법으로 변경됨.
+- **해결**:
+  - `operations:` 아래에 하이픈(`-`)을 붙여 리스트 형태로 선언:
+  ```yaml
+  operations:
+    - All
+  ```
 
 ---
 
