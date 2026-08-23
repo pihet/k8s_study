@@ -215,58 +215,27 @@ kubectl apply -f mariadb.yaml -n mariadb
 ```
 
 ### [Step 2] Apache Kafka 배포 (Strimzi Operator)
-> 👉 **상세 가이드 및 트러블슈팅**: [📖 `kafka/README.md`](./kafka/README.md) 참조
+> 👉 **초보자 실전 따라하기**: [📖 `kafka/setting.md`](./kafka/setting.md) | [📖 상세 트러블슈팅 `kafka/README.md`](./kafka/README.md) 참조
 
 ```bash
-# 1. Strimzi 최신 CRD 수동 적용 (v1 지원)
-kubectl apply -f https://github.com/strimzi/strimzi-kafka-operator/releases/download/1.1.0/strimzi-crds-1.1.0.yaml
-
-# 2. Strimzi Operator 설치 (Helm)
-helm repo add strimzi https://strimzi.io/charts/
-helm repo update
-helm install strimzi-operator strimzi/strimzi-kafka-operator --namespace kafka --create-namespace
-
-# 3. Kafka 클러스터 배포 (KRaft 모드)
-kubectl apply -f kafka/kafka-cluster.yaml
+# 1. Kafka 배포 및 실습은 아래 문서 순서대로 진행
+cat kafka/setting.md
 ```
 
-### [Step 3] Apache Flink / Spark 클러스터 배포
+### [Step 3] Apache Airflow 배포 (Helm)
+> 👉 **초보자 실전 따라하기**: [📖 `airflow/setting.md`](./airflow/setting.md) 참조
+
 ```bash
-# 1. cert-manager 및 Flink Operator 설치
-kubectl apply -f https://github.com/jetstack/cert-manager/releases/download/v1.18.2/cert-manager.yaml --insecure-skip-tls-verify
-
-helm repo add flink-operator-repo https://downloads.apache.org/flink/flink-kubernetes-operator-1.13.0/
-helm repo update
-helm install flink-kubernetes-operator flink-operator-repo/flink-kubernetes-operator \
-  -n flink-kubernetes-operator \
-  --create-namespace \
-  --insecure-skip-tls-verify
-
-# 2. Flink Session Cluster & SQL Gateway 매니페스트 적용
-kubectl create namespace flink
-kubectl apply -f flink-session-cluster.yaml -n flink
-kubectl apply -f flink-sql-gateway.yaml -n flink
+# 1. Airflow 배포 및 실습은 아래 문서 순서대로 진행
+cat airflow/setting.md
 ```
 
-### [Step 4] Apache Airflow 배포 (Helm)
+### [Step 4] Apache Spark on K8s 클러스터 배포
+> 👉 **초보자 실전 따라하기**: [📖 `spark/setting.md`](./spark/setting.md) 참조
+
 ```bash
-# 1. Airflow Helm Repo 추가
-helm repo add apache-airflow https://airflow.apache.org
-helm repo update
-
-# 2. Airflow 설치 (네임스페이스: airflow)
-kubectl create namespace airflow
-helm install airflow apache-airflow/airflow -n airflow -f values.yaml
-
-# 3. Admin 관리자 계정 생성
-kubectl exec -n airflow deploy/airflow-scheduler -c scheduler -- \
-  airflow users create \
-    --username admin \
-    --password admin \
-    --firstname Admin \
-    --lastname User \
-    --role Admin \
-    --email admin@example.com
+# 1. Spark 배포 및 실습은 아래 문서 순서대로 진행
+cat spark/setting.md
 ```
 
 ---

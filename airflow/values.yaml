@@ -1,0 +1,39 @@
+# airflow/values.yaml
+
+# 1. 태스크 실행 시에만 K8s 파드를 동적으로 띄우는 KubernetesExecutor 선택
+executor: "KubernetesExecutor"
+
+# 2. 불필요한 데몬 비활성화로 RAM 절약
+triggerer:
+  enabled: false
+statsd:
+  enabled: false
+
+# 3. 배포 즉시 admin/admin 계정 자동 생성
+webserver:
+  replicas: 1
+  defaultUser:
+    enabled: true
+    role: Admin
+    username: admin
+    password: admin
+    email: admin@example.com
+    firstName: Admin
+    lastName: User
+
+# 4. 스케줄러 1대
+scheduler:
+  replicas: 1
+
+# 5. 메타데이터 DB (PostgreSQL 5Gi)
+postgresql:
+  enabled: true
+  persistence:
+    size: 5Gi
+
+# 6. 파이썬 DAG 파일 저장용 영구 볼륨 (1Gi)
+dags:
+  persistence:
+    enabled: true
+    size: 1Gi
+    storageClassName: standard
