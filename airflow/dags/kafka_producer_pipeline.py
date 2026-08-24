@@ -40,28 +40,22 @@ with DAG(
         cmds=['/bin/bash', '-c'],
         arguments=[
             """
-            echo "1. Generating SASL SCRAM-SHA-512 configuration..."
-            cat <<EOF > /tmp/client.properties
-            security.protocol=SASL_PLAINTEXT
-            sasl.mechanism=SCRAM-SHA-512
-            sasl.jaas.config=org.apache.kafka.common.security.scram.ScramLoginModule required username="my-app-user" password="uk2eajtu8WM5lGgAemy5F8l3qoJh5mwz";
-            EOF
+printf 'security.protocol=SASL_PLAINTEXT\\nsasl.mechanism=SCRAM-SHA-512\\nsasl.jaas.config=org.apache.kafka.common.security.scram.ScramLoginModule required username="my-app-user" password="uk2eajtu8WM5lGgAemy5F8l3qoJh5mwz";\\n' > /tmp/client.properties
 
-            echo "2. Generating 3 E-Commerce Orders..."
-            ORDER_1='{"order_id": "ORD-1001", "user": "user_kim", "item": "MacBook Pro M3", "amount": 3200000, "timestamp": "'$(date -Iseconds)'"}'
-            ORDER_2='{"order_id": "ORD-1002", "user": "user_lee", "item": "Sony WH-1000XM5", "amount": 450000, "timestamp": "'$(date -Iseconds)'"}'
-            ORDER_3='{"order_id": "ORD-1003", "user": "user_park", "item": "Keychron K2", "amount": 120000, "timestamp": "'$(date -Iseconds)'"}'
+ORDER_1='{"order_id": "ORD-1001", "user": "user_kim", "item": "MacBook Pro M3", "amount": 3200000, "timestamp": "'$(date -Iseconds)'"}'
+ORDER_2='{"order_id": "ORD-1002", "user": "user_lee", "item": "Sony WH-1000XM5", "amount": 450000, "timestamp": "'$(date -Iseconds)'"}'
+ORDER_3='{"order_id": "ORD-1003", "user": "user_park", "item": "Keychron K2", "amount": 120000, "timestamp": "'$(date -Iseconds)'"}'
 
-            echo "Publishing Order 1: $ORDER_1"
-            echo "$ORDER_1" | bin/kafka-console-producer.sh --bootstrap-server my-cluster-kafka-bootstrap.kafka.svc:9092 --topic my-topic --producer.config /tmp/client.properties
+echo "Sending Order 1: $ORDER_1"
+echo "$ORDER_1" | bin/kafka-console-producer.sh --bootstrap-server my-cluster-kafka-bootstrap.kafka.svc:9092 --topic my-topic --command-config /tmp/client.properties
 
-            echo "Publishing Order 2: $ORDER_2"
-            echo "$ORDER_2" | bin/kafka-console-producer.sh --bootstrap-server my-cluster-kafka-bootstrap.kafka.svc:9092 --topic my-topic --producer.config /tmp/client.properties
+echo "Sending Order 2: $ORDER_2"
+echo "$ORDER_2" | bin/kafka-console-producer.sh --bootstrap-server my-cluster-kafka-bootstrap.kafka.svc:9092 --topic my-topic --command-config /tmp/client.properties
 
-            echo "Publishing Order 3: $ORDER_3"
-            echo "$ORDER_3" | bin/kafka-console-producer.sh --bootstrap-server my-cluster-kafka-bootstrap.kafka.svc:9092 --topic my-topic --producer.config /tmp/client.properties
+echo "Sending Order 3: $ORDER_3"
+echo "$ORDER_3" | bin/kafka-console-producer.sh --bootstrap-server my-cluster-kafka-bootstrap.kafka.svc:9092 --topic my-topic --command-config /tmp/client.properties
 
-            echo "=== Successfully Published 3 Orders to Kafka topic [my-topic]! ==="
+echo "=== Successfully Published 3 Orders to Kafka topic [my-topic]! ==="
             """
         ],
         name='airflow-kafka-producer-pod',
