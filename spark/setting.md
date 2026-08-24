@@ -123,8 +123,26 @@ kubectl logs -n spark pyspark-pi-driver | grep "Pi is roughly"
 
 ---
 
-## 🌐 Step 6. Kafka ➔ Spark ➔ Airflow 엔드투엔드 파이프라인 연동
+## 🌐 Step 6. Kafka ➔ Spark 엔드투엔드 분산 처리 실습
 
-1. **Kafka (데이터 소스):** `my-topic`으로 실시간 결제/로그 데이터 스트림 인입.
-2. **Spark (분산 처리 엔진):** Kafka 토픽 데이터를 분산 처리하여 정제/통계 집계.
-3. **Airflow (스케줄러):** 매일/매시간 Spark 작업을 자동으로 트리거하고 모니터링.
+1. **PySpark 데이터 처리 스크립트 작성 (`spark/apps/spark_kafka_consumer.py`):**
+   - Kafka `my-topic`에 SCRAM-SHA-512 보안으로 접속.
+   - 원천 주문 JSON 데이터 파싱 및 고객별/상품별 분산 집계.
+
+2. **ConfigMap 등록:**
+   ```bash
+   kubectl create configmap spark-kafka-code \
+     --from-file=spark/apps/spark_kafka_consumer.py \
+     --namespace spark \
+     --dry-run=client -o yaml | kubectl apply -f -
+   ```
+
+3. **SparkApplication 배포 (`spark/apps/spark-kafka-job.yaml`):**
+   ```bash
+   kubectl apply -f spark/apps/spark-kafka-job.yaml
+   ```
+
+4. **분산 연산 결과 로그 실시간 확인:**
+   ```bash
+   kubectl logs -n spark spark-kafka-order-analytics-driver -f
+   ```
