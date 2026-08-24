@@ -70,12 +70,16 @@ postgresql:
   persistence:
     size: 5Gi
 
-# 6. 파이썬 DAG 파일 영구 볼륨 (1Gi) & Git-Sync 자동 동기화 ⭐
-dags:
+# 6. 로그 저장용 영구 볼륨 (워커 파드가 삭제되어도 웹 UI에서 로그 영구 보존 ⭐)
+logs:
   persistence:
     enabled: true
-    size: 1Gi
-    storageClassName: standard
+    size: 2Gi
+
+# 7. 파이썬 DAG 파일 Git-Sync 자동 동기화 ⭐ (persistence 대신 emptyDir로 모든 파드에 git-sync 사이드카 연동)
+dags:
+  persistence:
+    enabled: false
   gitSync:
     enabled: true
     repo: "https://github.com/pihet/k8s_study.git"   # 👈 내 깃 저장소 주소
