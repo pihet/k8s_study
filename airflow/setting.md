@@ -25,9 +25,9 @@ helm repo update
 
 ---
 
-## 📝 Step 2. 로컬 최적화 `values.yaml` 생성
+## 📝 Step 2. 로컬 최적화 `values.yaml` 생성 (Git-Sync 자동 동기화 포함 ⭐)
 
-Airflow를 가볍고 강력한 **`KubernetesExecutor`**로 돌리기 위한 설정 파일을 생성합니다.
+Airflow를 가볍고 강력한 **`KubernetesExecutor`**와 **`Git-Sync`** 방식으로 돌리기 위한 설정 파일입니다.
 
 ```bash
 # airflow 폴더로 이동
@@ -70,21 +70,30 @@ postgresql:
   persistence:
     size: 5Gi
 
-# 6. 파이썬 DAG 파일 저장용 영구 볼륨 (1Gi PVC)
+# 6. 파이썬 DAG 파일 영구 볼륨 (1Gi) & Git-Sync 자동 동기화 ⭐
 dags:
   persistence:
     enabled: true
     size: 1Gi
     storageClassName: standard
+  gitSync:
+    enabled: true
+    repo: "https://github.com/pihet/k8s_study.git"   # 👈 내 깃 저장소 주소
+    branch: "main"
+    subPath: "airflow/dags"                           # 👈 깃 저장소 내 DAG 폴더 경로
+    wait: 30                                          # 👈 30초마다 GitHub 자동 동기화!
 ```
 
 ---
 
-## 🚀 Step 3. Airflow 클러스터 배포
+## 🚀 Step 3. Airflow 클러스터 최초 배포 및 갱신
 
 ```bash
-# airflow 네임스페이스에 Helm 배포 실행
+# 1. 최초 배포 시 (create-namespace 포함)
 helm install airflow apache-airflow/airflow --namespace airflow --create-namespace -f values.yaml
+
+# 2. values.yaml 수정 후 설정 반영(업그레이드) 시
+helm upgrade airflow apache-airflow/airflow --namespace airflow -f values.yaml
 ```
 
 ---
@@ -99,8 +108,8 @@ kubectl get pods -n airflow -w
 > **정상 파드 목록 예시:**
 > - `airflow-postgresql-0` (1/1 Running)
 > - `airflow-scheduler-xxxx` (2/2 Running)
-> - `airflow-api-server-xxxx` (또는 webserver) (1/1 Running)
-> - `airflow-dag-processor-xxxx` (2/2 Running)
+> - `airflow-api-server-xxxx` (1/1 Running)
+> - `airflow-dag-processor-xxxx` (3/3 Running - git-sync 포함)
 
 ### 🌐 웹 브라우저 접속 (포트포워딩)
 ```bash
@@ -112,55 +121,101 @@ kubectl port-forward -n airflow svc/airflow-api-server 8081:8080
 
 ---
 
-## 📜 Step 5. 첫 번째 파이썬 DAG 작성 & 전달
+## 📜 Step 5. 파이썬 DAG 작성 & Git Push (0-Click 자동 반영)
 
-`airflow/dags/` 폴더에 샘플 DAG 코드를 작성합니다.
+`airflow/dags/hello_k8s_dag.py` 파일을 로컬에서 작성합니다:
 
 ```python
 # airflow/dags/hello_k8s_dag.py
 from airflow import DAG
 from airflow.operators.bash import BashOperator
+from airflow.operators.python import PythonOperator
 from datetime import datetime, timedelta
 
 default_args = {
     'owner': 'pihet',
     'start_date': datetime(2026, 1, 1),
-    'retries': 1,
+    'retries': 2,
     'retry_delay': timedelta(minutes=1),
 }
 
+def process_data_logic(**context):
+    print("파이썬 데이터 처리 함수가 성공적으로 실행되었습니다!")
+    return {"status": "success"}
+
 with DAG(
-    'hello_kubernetes_dag',
+    dag_id='hello_kubernetes_dag',
     default_args=default_args,
-    schedule_interval=None,
+    schedule=None,
     catchup=False,
     tags=['study', 'k8s'],
 ) as dag:
 
-    t1 = BashOperator(
+    task_start = BashOperator(
         task_id='print_start',
         bash_command='echo "Airflow on K8s Pipeline Started!"',
     )
 
-    t2 = BashOperator(
-        task_id='print_date',
-        bash_command='date',
+    task_python = PythonOperator(
+        task_id='run_python_processing',
+        python_callable=process_data_logic,
     )
 
-    t1 >> t2
+    task_end = BashOperator(
+        task_id='pipeline_finished',
+        bash_command='echo "All Tasks Completed Successfully!"',
+    )
+
+    task_start >> task_python >> task_end
 ```
 
-### 📂 DAG 파일을 Airflow 파드로 복사하기
+### 🚀 Git Push만 하면 끝! (수동 cp 필요 없음)
 ```bash
-# 로컬 dags 폴더의 파이썬 파일을 Airflow 파드의 dags 디렉토리로 동기화
-kubectl cp dags/hello_k8s_dag.py airflow/$(kubectl get pod -n airflow -l component=scheduler -o jsonpath='{.items[0].metadata.name}'):/opt/airflow/dags/
+git add airflow/dags/hello_k8s_dag.py
+git commit -m "feat: add hello_k8s_dag"
+git push origin main
 ```
+> 👉 `git push` 후 약 30초가 지나면 Airflow `git-sync`가 자동으로 깃허브에서 코드를 땡겨와 웹 UI에 즉시 반영합니다!
 
 ---
 
 ## 🎯 Step 6. DAG 실행 & KubernetesExecutor 일꾼 파드 관찰
 
-1. Airflow 웹 UI([`http://localhost:8081`](http://localhost:8081))에서 **`hello_kubernetes_dag`**를 활성화(토글 ON)하고 **`Trigger DAG` (▶ 재생 버튼)**을 클릭합니다.
-2. 터미널 또는 OpenLens에서 `kubectl get pods -n airflow -w`를 보면:
-   - 태스크가 실행되는 순간 **`hello-kubernetes-dag-print-start-xxxx`** 라는 일꾼 파드가 동적으로 생성되어 작업을 수행하고,
-   - 작업 완료 후 파드가 자동으로 정리(`Completed`)되는 **`KubernetesExecutor`의 진가**를 직접 확인할 수 있습니다!
+1. Airflow 웹 UI([`http://localhost:8081`](http://localhost:8081))의 **`Dags`** 메뉴에서 **`hello_kubernetes_dag`** 클릭.
+2. 좌측 상단 **토글 스위치를 `ON`**으로 켜고, 우측 상단 **`Trigger DAG` (▶ 재생 버튼)** 클릭.
+3. 터미널 또는 OpenLens에서 `kubectl get pods -n airflow -w`를 보면:
+   - 태스크가 실행될 때마다 **`hello-kubernetes-dag-print-start-xxxx`** 일꾼 파드가 동적으로 생성되고,
+   - 작업 완료 후 파드가 자동으로 정리(`Completed`)되는 것을 확인할 수 있습니다!
+
+---
+
+## 🛠️ 자주 쓰는 실무 Airflow 명령어 치트시트 (Cheatsheet)
+
+### 1. 파드 및 상태 진단
+```bash
+# Airflow 전체 파드 상태 조회
+kubectl get pods -n airflow
+
+# Git-Sync 동기화 로그 실시간 확인 (코드가 잘 들어오는지 감시)
+kubectl logs -n airflow -l component=dag-processor -c git-sync -f
+
+# 스케줄러 로그 확인
+kubectl logs -n airflow -l component=scheduler -c scheduler --tail=50
+```
+
+### 2. Airflow CLI 디버깅 (스케줄러 파드 내부 실행)
+```bash
+# 등록된 전체 DAG 목록 확인
+kubectl exec -n airflow deploy/airflow-scheduler -c scheduler -- airflow dags list
+
+# DAG 문법 에러(Import Error) 확인 (대시보드에 안 뜰 때 1순위 확인!) ⭐
+kubectl exec -n airflow deploy/airflow-scheduler -c scheduler -- airflow dags list-import-errors
+
+# 특정 태스크 단독 테스트 실행 (스케줄러 없이 즉시 실행 테스트)
+kubectl exec -n airflow deploy/airflow-scheduler -c scheduler -- airflow tasks test hello_kubernetes_dag print_start 2026-08-24
+```
+
+### 3. 웹 UI 포트포워딩
+```bash
+kubectl port-forward -n airflow svc/airflow-api-server 8081:8080
+```

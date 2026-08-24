@@ -37,3 +37,9 @@ dags:
     enabled: true
     size: 1Gi
     storageClassName: standard
+  gitSync:
+    enabled: true
+    repo: https://github.com/pihet/k8s_study.git
+    branch: main
+    subPath: airflow/dags
+    wait: 30
