@@ -44,7 +44,7 @@ with DAG(
             cat <<EOF > /tmp/client.properties
             security.protocol=SASL_PLAINTEXT
             sasl.mechanism=SCRAM-SHA-512
-            sasl.jaas.config=org.apache.kafka.common.security.scram.ScramLoginModule required username="my-app-user" password="uk2eajtuFwLh3YcR12gK";
+            sasl.jaas.config=org.apache.kafka.common.security.scram.ScramLoginModule required username="my-app-user" password="uk2eajtu8WM5lGgAemy5F8l3qoJh5mwz";
             EOF
 
             echo "2. Generating 3 E-Commerce Orders..."

@@ -30,7 +30,7 @@ spec:
             - name: KAFKA_CLUSTERS_0_PROPERTIES_SASL_MECHANISM
               value: "SCRAM-SHA-512"
             - name: KAFKA_CLUSTERS_0_PROPERTIES_SASL_JAAS_CONFIG
-              value: 'org.apache.kafka.common.security.scram.ScramLoginModule required username="my-app-user" password="uk2eajtuFwLh3YcR12gK";'
+              value: 'org.apache.kafka.common.security.scram.ScramLoginModule required username="my-app-user" password="uk2eajtu8WM5lGgAemy5F8l3qoJh5mwz";'
           resources:
             requests:
               cpu: 100m
