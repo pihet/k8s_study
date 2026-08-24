@@ -12,7 +12,7 @@ spec:
   mode: cluster
   image: "docker.io/apache/spark:3.5.1"
   imagePullPolicy: IfNotPresent
-  mainApplicationFile: "local:///opt/spark/apps/spark_kafka_consumer.py"
+  mainApplicationFile: "local:///mnt/spark-code/spark_kafka_consumer.py"
   sparkVersion: "3.5.1"
   restartPolicy:
     type: Never
@@ -26,7 +26,7 @@ spec:
     packages:
       - "org.apache.spark:spark-sql-kafka-0-10_2.12:3.5.1"
 
-  # ConfigMap에 저장된 파이썬 코드를 파드 내부 /opt/spark/apps 로 마운트 ⭐
+  # ConfigMap에 저장된 파이썬 코드를 /mnt/spark-code 로 마운트 ⭐
   volumes:
     - name: spark-code-volume
       configMap:
@@ -41,7 +41,7 @@ spec:
     serviceAccount: spark
     volumeMounts:
       - name: spark-code-volume
-        mountPath: /opt/spark/apps
+        mountPath: /mnt/spark-code
 
   executor:
     cores: 1
@@ -51,4 +51,4 @@ spec:
       version: 3.5.1
     volumeMounts:
       - name: spark-code-volume
-        mountPath: /opt/spark/apps
+        mountPath: /mnt/spark-code
