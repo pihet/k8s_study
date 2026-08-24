@@ -31,7 +31,13 @@ postgresql:
   persistence:
     size: 5Gi
 
-# 6. 파이썬 DAG 파일 저장용 영구 볼륨 (1Gi)
+# 6. 로그 저장용 영구 볼륨 (워커 파드가 삭제되어도 웹 UI에서 로그 영구 보존 ⭐)
+logs:
+  persistence:
+    enabled: true
+    size: 2Gi
+
+# 7. 파이썬 DAG 파일 저장용 영구 볼륨 (1Gi) & Git-Sync 자동 동기화 ⭐
 dags:
   persistence:
     enabled: true
