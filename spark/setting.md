@@ -25,17 +25,22 @@ helm repo update
 
 ---
 
-## 🚀 Step 2. Spark Operator 배포
+## 🚀 Step 2. Spark Operator 배포 (클러스터 전체 네임스페이스 감시)
 
 ```bash
-# 1. spark-operator 네임스페이스에 오퍼레이터 배포
+# 1. spark-operator 배포 (클러스터 전체 네임스페이스 감시 및 권한 자동 설정)
 helm install spark-operator spark-operator/spark-operator \
   --namespace spark-operator \
   --create-namespace \
-  --set webhook.enable=true
+  --set webhook.enable=true \
+  --set 'spark.jobNamespaces={""}'
 
-# 2. 오퍼레이터 파드 기동 확인 (1/1 Running 될 때까지 대기)
-kubectl get pods -n spark-operator -w
+# 2. 오퍼레이터 및 웹훅 권한 부여 (v2.x 필수)
+kubectl create clusterrolebinding spark-operator-controller-admin --clusterrole=cluster-admin --serviceaccount=spark-operator:spark-operator-controller
+kubectl create clusterrolebinding spark-operator-webhook-admin --clusterrole=cluster-admin --serviceaccount=spark-operator:spark-operator-webhook
+
+# 3. 오퍼레이터 파드 기동 확인 (2개 파드 모두 1/1 Running 될 때까지 대기)
+kubectl get pods -n spark-operator
 ```
 
 ---
