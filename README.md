@@ -9,13 +9,13 @@
 ```
                  [Apache Airflow 3 (KubernetesExecutor)]
                           │ (배치 및 스트림 파이프라인 오케스트레이션)
-                          ▼
-[클라이언트 / 데이터 소스] ──▶ [Apache Kafka (Strimzi 3-Node HA)] ──▶ [Kafka-UI (8088)]
+                          v
+[클라이언트 / 데이터 소스] ---> [Apache Kafka (Strimzi 3-Node HA)] ---> [Kafka-UI (8088)]
                                          │ (my-topic 파티션 스트림)
-                                         ▼
+                                         v
                             [Apache Spark (Spark Operator)]
-                             ├─ Driver Pod (1 Core, 1Gi)
-                             └─ Executor Pods (2대 분산 처리)
+                             |- Driver Pod (1 Core, 1Gi)
+                             `- Executor Pods (2대 분산 처리)
 ```
 
 | 컴포넌트 | 배포 방식 | 네임스페이스 | 주요 역할 및 설명 |

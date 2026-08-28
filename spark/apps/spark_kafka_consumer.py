@@ -12,7 +12,7 @@ from pyspark.sql.types import StructType, StructField, StringType, LongType
 
 def main():
     print("=========================================================")
-    print("🚀 Starting Spark Kafka Distributed Processing Application")
+    print(" Starting Spark Kafka Distributed Processing Application")
     print("=========================================================")
 
     # 1. SparkSession 생성
@@ -49,10 +49,10 @@ def main():
         .select("data.*") \
         .filter(col("order_id").isNotNull())
 
-    print("\n📦 [1단계] Kafka my-topic에서 추출한 원천 주문 데이터 목록:")
+    print("\n [1단계] Kafka my-topic에서 추출한 원천 주문 데이터 목록:")
     parsed_df.show(truncate=False)
 
-    print("\n👤 [2단계] 고객(User)별 총 구매 금액 및 주문 횟수 분산 집계:")
+    print("\n [2단계] 고객(User)별 총 구매 금액 및 주문 횟수 분산 집계:")
     user_summary = parsed_df.groupBy("user") \
         .agg({"amount": "sum", "order_id": "count"}) \
         .withColumnRenamed("sum(amount)", "total_spent_krw") \
@@ -60,7 +60,7 @@ def main():
         .orderBy(col("total_spent_krw").desc())
     user_summary.show(truncate=False)
 
-    print("\n🏆 [3단계] 상품(Item)별 총 매출 순위 집계 (인기 상품 랭킹):")
+    print("\n [3단계] 상품(Item)별 총 매출 순위 집계 (인기 상품 랭킹):")
     item_summary = parsed_df.groupBy("item") \
         .sum("amount") \
         .withColumnRenamed("sum(amount)", "total_sales_krw") \
@@ -68,7 +68,7 @@ def main():
     item_summary.show(truncate=False)
 
     print("=========================================================")
-    print("✅ All Spark Distributed Processing Completed Successfully!")
+    print(" All Spark Distributed Processing Completed Successfully!")
     print("=========================================================")
 
     spark.stop()
