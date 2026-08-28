@@ -1,18 +1,16 @@
 # Apache Kafka on Kubernetes 운영 가이드
 
-> 조선소 872개 블록 제조 공정 및 돌발 긴급 블록 스트리밍을 담당하는 Strimzi 기반 고가용성(HA) Kafka 브로커 운영 가이드입니다.
+> Strimzi Operator 기반 3-노드 고가용성(HA) Kafka 브로커 클러스터 및 KRaft 컨트롤러 운영 가이드입니다.
 
 ---
 
 ## 1. 주요 파일별 역할 및 기능
 
-- [`cluster/kafka-ha-cluster.yaml`](./cluster/kafka-ha-cluster.yaml): Strimzi 기반 3-브로커 HA 클러스터 및 KRaft 컨트롤러 노드 배포 매니페스트.
-- [`topics/shipyard-topics.yaml`](./topics/shipyard-topics.yaml): 872개 MES 블록 및 실시간 긴급 블록(`shipyard.emergency.blocks`) 토픽 선언 매니페스트.
-- [`users/app-user.yaml`](./users/app-user.yaml): SCRAM-SHA-512 기반 클라이언트 보안 인증 계정 및 토픽별 ACL 권한 설정 매니페스트.
-- [`producer_mes_blocks.py`](./producer_mes_blocks.py): 872개 마스터 제조 블록 데이터를 Kafka 브로커로 일괄 발행하는 배치 프로듀서.
-- [`producer_emergency_stream.py`](./producer_emergency_stream.py): 현장 돌발 상황을 모사하여 0.5초 주기로 긴급 블록 이벤트를 실시간 발행하는 스트림 프로듀서.
-- [`consumer_to_iceberg.py`](./consumer_to_iceberg.py): Kafka 토픽의 실시간 메시지를 수신하여 MinIO S3 레이크하우스로 적재하는 컨슈머.
-- [`emergency_producer_job.yaml`](./emergency_producer_job.yaml): 긴급 블록 프로듀서를 클러스터 내부 Pod로 실행하는 Kubernetes Job 매니페스트.
+- [`cluster/kafka-ha-cluster.yaml`](./cluster/kafka-ha-cluster.yaml): Strimzi 3-브로커 HA 클러스터 및 3-컨트롤러 노드 배포 매니페스트.
+- [`cluster/kafka-single-node.yaml`](./cluster/kafka-single-node.yaml): 로컬 경량 테스트용 단일 브로커 Kafka 매니페스트.
+- [`topics/kafka-topic.yaml`](./topics/kafka-topic.yaml): 파티션 3개, 복제본 3개로 구성된 `my-topic` 선언 매니페스트.
+- [`users/app-user.yaml`](./users/app-user.yaml): SCRAM-SHA-512 인증 계정(`my-app-user`) 및 토픽 읽기/쓰기 ACL 권한 매니페스트.
+- [`../kafka-ui/kafka-ui.yaml`](../kafka-ui/kafka-ui.yaml): Kafka 브로커 모니터링을 위한 Kafka-UI 웹 애플리케이션 매니페스트.
 
 ---
 
@@ -24,32 +22,39 @@ helm upgrade --install strimzi-kafka-operator strimzi/strimzi-kafka-operator -n 
 kubectl apply -f kafka/cluster/kafka-ha-cluster.yaml
 
 # 2. 토픽 및 보안 사용자 계정 배포
-kubectl apply -f kafka/topics/shipyard-topics.yaml
+kubectl apply -f kafka/topics/kafka-topic.yaml
 kubectl apply -f kafka/users/app-user.yaml
 
-# 3. 긴급 블록 실시간 프로듀서 실행 (로컬)
-pj2
-python kafka/producer_emergency_stream.py
+# 3. Kafka-UI 웹 대시보드 배포
+kubectl apply -f kafka-ui/kafka-ui.yaml
 
-# 4. Kafka-UI 웹 대시보드 포트포워딩
-kubectl port-forward -n kafka svc/kafka-ui 8088:8080
-# 접속 주소: http://localhost:8088
+# 4. 클러스터 내부에서 CLI 메시지 발행 및 소비 테스트
+# 메시지 발행 (Producer)
+kubectl exec -it -n kafka my-cluster-broker-0 -- bin/kafka-console-producer.sh \
+  --bootstrap-server localhost:9092 \
+  --topic my-topic
+
+# 메시지 소비 (Consumer)
+kubectl exec -it -n kafka my-cluster-broker-0 -- bin/kafka-console-consumer.sh \
+  --bootstrap-server localhost:9092 \
+  --topic my-topic \
+  --from-beginning
 ```
 
 ---
 
 ## 3. 핵심 에러 발생 시 해결법 (Troubleshooting)
 
-- **에러 1: `Strimzi Operator CrashLoopBackOff (CRD 버전 불일치)`**
-  - **원인**: 구버전 v1beta2 CRD가 클러스터에 남아 최신 오퍼레이터 구동이 거부됨.
-  - **해결**: 최신 v1 CRD 재적용 후 오퍼레이터 파드 재기동:
+- **에러 1: `Strimzi Operator CrashLoopBackOff (CRD 버전 충돌)`**
+  - **원인**: 구버전 v1beta2 CRD 잔존으로 인해 최신 오퍼레이터 구동 실패.
+  - **해결**: 최신 v1 CRD 재적용 후 오퍼레이터 재기동:
     ```bash
     kubectl apply -f https://github.com/strimzi/strimzi-kafka-operator/releases/download/1.1.0/strimzi-crds-1.1.0.yaml
     kubectl delete pod -n kafka -l name=strimzi-cluster-operator
     ```
-- **에러 2: `NoBrokersAvailable` / `AuthenticationFailed (SASL SCRAM)`**
-  - **원인**: SASL_PLAINTEXT 포트(9092) 접속 시 유저 비밀번호가 누락되거나 불일치함.
-  - **해결**: k8s 시크릿에서 실제 비밀번호를 추출하여 프로듀서 설정에 적용:
+- **에러 2: `AuthenticationFailed / NoBrokersAvailable`**
+  - **원인**: SCRAM-SHA-512 보안 계정 패스워드 불일치.
+  - **해결**: k8s 시크릿에서 실제 자동 생성된 패스워드 추출 확인:
     ```bash
     kubectl get secret my-app-user -n kafka -o jsonpath='{.data.password}' | base64 -d
     ```
